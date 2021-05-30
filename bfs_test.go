@@ -26,6 +26,27 @@ func Neighbors(n Node) chan Node {
 
 func TestBFS(t *testing.T) {
 	root := Node(1)
-	queue := []Node {root}
+	nodesInLevel := uint32(1)
+	promise := NewMultiPromise()
+	promise.Fulfill(root)
+	promise.Complete()
+	for nodesInLevel > 0 {
+		nextLevel := NewMultiPromise()
+		promise.Then(func(val PromisedValue) (PromisedValue, error) {
+			n := val.(Node)
+			for neighbor := range Neighbors(n) {
+				nextLevel.Fulfill()
+			}
+		})
+		go func() {
+			defer promise.Complete()
+			for neighbor := range Neighbors(node) {
+				promise.Fulfill(neighbor)
+			}
+		}()
+		promise.Then(func(val PromisedValue) (PromisedValue, error) {
+
+		})
+	}
 }
 
