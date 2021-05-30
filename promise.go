@@ -49,12 +49,9 @@ func (p *MultiPromise) isDone() bool {
 // can be called multiple times before done to populate the vals array
 // attempts to fulfill after error or Completed are ignored.
 func (p *MultiPromise) Fulfill(val PromisedValue) {
-	if val == nil {
-		panic("cannot set val==nil")
-	}
 	p.mux.Lock()
 	defer p.mux.Unlock()
-	if p.err != nil {
+	if p.err != nil || p.isDone() {
 		return
 	}
 	p.vals = append(p.vals, val)
@@ -133,7 +130,7 @@ func (p *MultiPromise) Map(
 			if earlyError {
 				return
 			}
-			val, err = valCallback(val)
+			val, err := valCallback(val)
 			if err != nil {
 				childPromise.Error(err)
 				earlyError = true
@@ -151,21 +148,19 @@ func (p *MultiPromise) Map(
 	return childPromise
 }
 
-func (p *MultiPromise) Then(callback func(PromisedValue) PromisedValue) *MultiPromise {
-	return p.Map(func(val PromisedValue, err error) (PromisedValue, error) {
-		if err != nil {
-			return nil, err
-		}
-		return callback(val), nil
+func (p *MultiPromise) Then(callback func(PromisedValue) (PromisedValue, error)) *MultiPromise {
+	return p.Map(func(val PromisedValue) (PromisedValue, error) {
+		return callback(val)
+	}, func (err error) error {
+		return err
 	})
 }
 
 func (p *MultiPromise) OnError(callback func(error) error) *MultiPromise {
-	return p.Map(func(val PromisedValue, err error) (PromisedValue, error) {
-		if err != nil {
-			return nil, callback(err)
-		}
+	return p.Map(func(val PromisedValue) (PromisedValue, error) {
 		return val, nil
+	}, func(err error) error {
+		return callback(err)
 	})
 }
 
